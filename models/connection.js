@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-mongoose.set('strictQuery', false);
+mongoose.set('strictQuery', true);
 const connectionString = process.env.CONNECTION_STRING;
 
 mongoose.connect(connectionString, { useNewUrlParser: true, useUnifiedTopology: true, connectTimeoutMS: 2000 })

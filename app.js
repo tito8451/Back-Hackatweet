@@ -12,7 +12,7 @@ var app = express();
 
 const cors = require('cors');
 app.use(cors({
-    origin: ['http://localhost:3001'], // Remplacez par vos origines
+    origin: ['http://localhost:3001', 'https://frontend-hackatweet.vercel.app'], // Remplacez par vos origines
     methods: ["GET", "POST", "PUT", "DELETE"], // Ajustez les méthodes selon vos besoins
     allowedHeaders: ['Content-Type', 'Authorization'],
   }));
