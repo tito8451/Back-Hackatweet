@@ -54,7 +54,7 @@ router.post('/signup', async (req, res) => {
   }
 });
 
-module.exports = router;
+
 router.post('/signin', async (req, res) => {
   console.log('Received body:', req.body); // Affiche le corps reçu
 
