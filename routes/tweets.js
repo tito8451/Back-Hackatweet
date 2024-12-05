@@ -5,64 +5,80 @@ const User = require('../models/users');
 const Tweet = require('../models/tweets');
 const { checkBody } = require('../modules/checkBody');
 
-router.post('/', (req, res) => {
-  if (!checkBody(req.body, ['token', 'content'])) {
-    res.json({ result: false, error: 'Missing or empty fields' });
+router.post('/', async (req, res) => {
+  // console.log("Received body:", req.body);
+  // console.log("req.body keys:", Object.keys(req.body)); 
+  const missingFields = checkBody(req.body, ['token', 'content']);
+  if (missingFields) {
+    res.status(400).json({ result: false, message: 'Missing or empty fields :' + missingFields.join(', ') });
+    return;
+  }
+ try {
+  const user = await User.findOne({ token: "ySYGZLjh__ZL90pG8Xqi5kD9TOrdSaU3" })
+  // console.log("User:", user)
+  if (!user) {
+    res.status(401).json({ result: false, error: 'User not found' });
     return;
   }
 
-  User.findOne({ token: req.body.token }).then(user => {
-    if (user === null) {
-      res.json({ result: false, error: 'User not found' });
-      return;
-    }
-
-    const newTweet = new Tweet({
-      author: user._id,
-      content: req.body.content,
-      createdAt: new Date(),
-    });
-
-    newTweet.save().then(newDoc => {
-      res.json({ result: true, tweet: newDoc });
-    });
+  const newTweet = new Tweet({
+    author: user._id,
+    content: req.body.content,
+    createdAt: new Date(),
   });
+// console.log("New tweet:", newTweet)
+   const tweetSaved = await newTweet.save()
+  //  console.log("Tweet saved:", tweetSaved)
+   if(!tweetSaved) {
+    res.status(500).json({ result: false, message: 'Internal server error', error: error.message});
+    return;
+   } else {
+    res.status(200).json({ result: true, tweet: tweetSaved });
+   }
+  } catch (error) {
+  res.status(500).json({ result: false, message: 'Internal server error', error: error.message});
+}
+
 });
 
-router.get('/all/:token', (req, res) => {
-  User.findOne({ token: req.params.token }).then(user => {
-    if (user === null) {
-      res.json({ result: false, error: 'User not found' });
+
+router.get('/all/:token', async (req, res) => {
+ const user = await User.findOne({ token: req.params.token })
+    if (!user) {
+      res.status(401).json({ result: false, error: 'User not found' });
       return;
     }
 
-    Tweet.find() // Populate and select specific fields to return (for security purposes)
-      .populate('author', ['username', 'firstName'])
-      .populate('likes', ['username'])
+   const tweets = await Tweet.find() // Populate and select specific fields to return (for security purposes)
+      .populate('author', ['username', 'firstname'])
+      .populate('likes', ['username', 'firstname'])
       .sort({ createdAt: 'desc' })
-      .then(tweets => {
-        res.json({ result: true, tweets });
+    
+        res.status(200).json({ result: true, tweets });
       });
-  });
-});
+ 
 
-router.get('/trends/:token', (req, res) => {
-  User.findOne({ token: req.params.token }).then(user => {
-    if (user === null) {
-      res.json({ result: false, error: 'User not found' });
+
+router.get('/trends/:token', async (req, res) => {
+ const user = await User.findOne({ token: req.params.token })
+    if (!user) {
+      res.status(401).json({ result: false, error: 'User not found' });
       return;
     }
 
-    Tweet.find({ content: { $regex: /#/ } })
-      .then(tweets => {
+   const findedTweets = await Tweet.find({ content: { $regex: /#/ } })
+    .populate('author', ['username', 'firstname'])
+    .populate('likes', ['username', 'firstname'])
+    .sort({ createdAt: 'desc' })
         const hashtags = [];
 
-        for (const tweet of tweets) {
-          const filteredHashtags = tweet.content.split(' ').filter(word => word.startsWith('#') && word.length > 1);
+        for (const tweet of findedTweets) {
+          const filteredHashtags = await tweet.content.split(' ').filter(word => word.startsWith('#') && word.length > 1);
           hashtags.push(...filteredHashtags);
         }
 
         const trends = [];
+
         for (const hashtag of hashtags) {
           const trendIndex = trends.findIndex(trend => trend.hashtag === hashtag);
           if (trendIndex === -1) {
@@ -72,89 +88,142 @@ router.get('/trends/:token', (req, res) => {
           }
         }
 
-        res.json({ result: true, trends: trends.sort((a, b) => b.count - a.count) });
+        res.status(200).json({ result: true, trends: trends.sort((a, b) => b.count - a.count) });
       });
+  
+
+
+      router.get('/hashtag/:token/:query', async (req, res) => {
+        try {
+            // Vérifiez si l'utilisateur existe avec le token
+            const user = await User.findOne({ token: req.params.token });
+            if (!user) {
+                return res.status(401).json({ result: false, error: 'User not found' });
+            }
+    
+            // Rechercher des tweets contenant le hashtag
+            const tweets = await Tweet.find({ 
+                content: { $regex: new RegExp('#' + req.params.query, 'i') }
+            })
+            .populate('author', ['username', 'firstname'])
+            .populate('likes', ['username', 'firstname'])
+            .sort({ createdAt: 'desc' });
+    
+            // Vérifier si des tweets ont été trouvés
+            if (tweets.length === 0) {
+                return res.status(404).json({ result: false, error: 'No tweets found for this hashtag' });
+            }
+    
+            // Répondre avec les tweets trouvés
+            return res.status(200).json({ result: true, tweets });
+    
+        } catch (error) {
+            console.error('An error occurred:', error);
+            return res.status(500).json({ result: false, error: 'Server error' });
+        }
+    });
+    
+ 
+  
+    router.get('/hashtag/:token/:query', async (req, res) => {
+      try {
+          // Vérifiez si l'utilisateur existe avec le token
+          const user = await User.findOne({ token: req.params.token });
+          if (!user) {
+              return res.status(401).json({ result: false, error: 'User not found' });
+          }
+  
+          // Rechercher des tweets contenant le hashtag
+          const tweets = await Tweet.find({ 
+              content: { $regex: new RegExp('#' + req.params.query, 'i') }
+          })
+          .populate('author', ['username', 'firstname'])
+          .populate('likes', ['username'])
+          .sort({ createdAt: 'desc' });
+  
+          // Vérifier si des tweets ont été trouvés
+          if (tweets.length === 0) {
+              return res.status(404).json({ result: false, error: 'No tweets found for this hashtag' });
+          }
+  
+          // Répondre avec les tweets trouvés
+          return res.status(200).json({ result: true, tweets });
+  
+      } catch (error) {
+          console.error('An error occurred:', error);
+          return res.status(500).json({ result: false, error: 'Server error' });
+      }
   });
-});
+  
 
-router.get('/hashtag/:token/:query', (req, res) => {
-  User.findOne({ token: req.params.token }).then(user => {
-    if (user === null) {
-      res.json({ result: false, error: 'User not found' });
-      return;
-    }
-
-    Tweet.find({ content: { $regex: new RegExp('#' + req.params.query, 'i') } }) // Populate and select specific fields to return (for security purposes)
-      .populate('author', ['username', 'firstName'])
-      .populate('likes', ['username'])
-      .sort({ createdAt: 'desc' })
-      .then(tweets => {
-        res.json({ result: true, tweets });
-      });
-  });
-});
-
-router.put('/like', (req, res) => {
-  if (!checkBody(req.body, ['token', 'tweetId'])) {
-    res.json({ result: false, error: 'Missing or empty fields' });
+router.put('/like',  async (req, res) => {
+  // console.log("Received body:", req.body);  
+  const missingFields = checkBody(req.body, ['token', 'tweetId']);
+  if (missingFields) {
+    res.status(400).json({ result: false, message: 'Missing or empty fields :' + missingFields.join(', ') });
     return;
   }
+ 
 
-  User.findOne({ token: req.body.token }).then(user => {
-    if (user === null) {
-      res.json({ result: false, error: 'User not found' });
+  const user = await User.findOne({ token: req.body.token })
+    if (!user) {
+      res.status(401).json({ result: false, error: 'User not found' });
       return;
     }
 
-    Tweet.findById(req.body.tweetId).then(tweet => {
+   const tweet = await Tweet.findById(req.body.tweetId)
       if (!tweet) {
-        res.json({ result: false, error: 'Tweet not found' });
+        res.status(404).json({ result: false, error: 'Tweet not found' });
         return;
       }
 
       if (tweet.likes.includes(user._id)) { // User already liked the tweet
-        Tweet.updateOne({ _id: tweet._id }, { $pull: { likes: user._id } }) // Remove user ID from likes
-          .then(() => {
-            res.json({ result: true });
-          });
+        const result = await Tweet.updateOne({ _id: tweet._id }, { $pull: { likes: user._id } }) // Remove user ID from likes
+          
+            res.json({ result: true, result });
       } else { // User has not liked the tweet
-        Tweet.updateOne({ _id: tweet._id }, { $push: { likes: user._id } }) // Add user ID to likes
-          .then(() => {
-            res.json({ result: true });
-          });
-      }
-    });
-  });
-});
+       const result = await Tweet.updateOne({ _id: tweet._id }, { $push: { likes: user._id } }) // Add user ID to likes
+          
+            res.json({ result: true , result});
+          
+          }
 
-router.delete('/', (req, res) => {
-  if (!checkBody(req.body, ['token', 'tweetId'])) {
-    res.json({ result: false, error: 'Missing or empty fields' });
+        })
+     
+
+
+router.delete('/', async (req, res) => {
+// console.log("Received body:", req.body);
+  const missingFields = checkBody(req.body, ['token', 'tweetId']);
+  if (missingFields) {
+    res.status(400).json({ result: false, message: 'Missing or empty fields: ' + missingFields.join(', ') });
     return;
   }
+ 
 
-  User.findOne({ token: req.body.token }).then(user => {
-    if (user === null) {
-      res.json({ result: false, error: 'User not found' });
+ const user = await User.findOne({ token: req.body.token })
+    if (!user) {
+      res.status(401).json({ result: false, error: 'User not found' });
       return;
     }
-
-    Tweet.findById(req.body.tweetId)
-      .populate('author')
-      .then(tweet => {
+console.log("User:", user)
+   const tweet = await Tweet.findById(req.body.tweetId)
+      .populate('author', ['username', 'firstname'])
+      .populate('likes', ['username'])
+    
         if (!tweet) {
-          res.json({ result: false, error: 'Tweet not found' });
+          res.status(404).json({ result: false, error: 'Tweet not found' });
           return;
         } else if (String(tweet.author._id) !== String(user._id)) { // ObjectId needs to be converted to string (JavaScript cannot compare two objects)
-          res.json({ result: false, error: 'Tweet can only be deleted by its author' });
+          res.status(403).json({ result: false, error: 'Tweet can only be deleted by its author' });
           return;
         }
-
-        Tweet.deleteOne({ _id: tweet._id }).then(() => {
-          res.json({ result: true });
+// console.log("Tweet:", tweet)
+  const tweetToDelete = tweet;
+       await Tweet.deleteOne({ _id: tweet._id })
+          res.status(200).json({ result: true, tweet: tweetToDelete });
         });
-      });
-  });
-});
+      
+ 
 
 module.exports = router;

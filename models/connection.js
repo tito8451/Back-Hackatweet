@@ -4,7 +4,7 @@ const mongoose = require('mongoose');
 mongoose.set('strictQuery', true);
 const connectionString = process.env.CONNECTION_STRING;
 
-console.log('Connection string:', connectionString); // Vérifiez que ça ne soit pas undefined
+// console.log('Connection string:', connectionString); // Vérifiez que ça ne soit pas undefined
 
 if (!connectionString) {
     console.error('Connection string is undefined. Check your environment variables.');
@@ -15,4 +15,4 @@ mongoose.connect(connectionString, { useNewUrlParser: true, useUnifiedTopology: 
     .then(() => console.log('Database connected'))
     .catch(error => console.error('Database connection error:', error));
 
-console.log("Server running on port 3000 ...");
+// console.log("Server running on port 3000 ...");

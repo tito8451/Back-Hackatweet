@@ -8,10 +8,10 @@ const bcrypt = require('bcrypt');
 const uid2 = require('uid2');
 
 router.post('/signup', async (req, res) => {
-  console.log('Received body:', req.body);
+  // console.log('Received body:', req.body);
 
   // Vérifier les champs manquants
-  const missingFields = checkBody(req.body, ['firstName', 'username', 'email', 'password']);
+  const missingFields = checkBody(req.body, ['firstname', 'username', 'email', 'password']);
   if (missingFields) {
       return res.status(400).json({ result: false, error: 'Missing or empty fields: ' + missingFields.join(', ') });
   }
@@ -34,7 +34,7 @@ router.post('/signup', async (req, res) => {
 
       // Création du nouvel utilisateur
       const newUser = new User({
-          firstName: req.body.firstName,
+          firstname: req.body.firstname,
           username: req.body.username,
           email: req.body.email,
           password: hash,
@@ -56,7 +56,7 @@ router.post('/signup', async (req, res) => {
 
 
 router.post('/signin', async (req, res) => {
-  console.log('Received body:', req.body); // Affiche le corps reçu
+  // console.log('Received body:', req.body); // Affiche le corps reçu
 
   // Vérifier les champs manquants
   const missingFields = checkBody(req.body, ['username', 'password']);
@@ -78,7 +78,7 @@ router.post('/signin', async (req, res) => {
       }
 
       // Répondre avec le token de l'utilisateur
-      return res.status(200).json({ result: true, token: user.token, username: user.username });
+      return res.status(200).json({ result: true, token: user.token, username: user.firstname, canBookmark: user.canBookmark });
 
   } catch (error) {
       console.error('Error during signin:', error);
